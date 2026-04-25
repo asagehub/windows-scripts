@@ -1,0 +1,11 @@
+# Windows
+Thumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# macOS
+.DS_Store
+
+# Output directories of Split-File.ps1
+scripts/powershell/Parts/
+scripts/powershell/Output/
