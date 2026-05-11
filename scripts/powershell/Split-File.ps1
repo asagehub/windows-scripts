@@ -229,4 +229,3 @@ if ($Mode -eq 'Split') {
         SizeMatch    = ($null -eq $OriginalFileSize -or $OriginalFileSize -eq $ActualFileSize)
     }
 }
-
