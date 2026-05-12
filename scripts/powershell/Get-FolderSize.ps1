@@ -5,8 +5,9 @@
     Returns all folders sorted by size (including subfolders by default), largest first.
 
 .DESCRIPTION
-    Scans all subdirectories under the specified root path, calculates the total
+    Scans the root path and all subdirectories, calculates the total
     size of each folder, and outputs them as objects sorted by size descending.
+    The root folder itself is included in the results with RelativePath set to '.'.
 
     By default, each folder's size includes all files in its subtree (direct files
     plus all descendant subfolders). Use -ExcludeSubfolders to revert to counting
@@ -38,11 +39,11 @@
 
 .OUTPUTS
     PSCustomObject
-        RelativePath : Path relative to the search root (primary display column)
-        SizeBytes    : Total size in bytes (includes subfolders unless -ExcludeSubfolders)
-        Size         : Human-readable size (MB or GB)
-        FileCount    : Number of files counted (includes subfolders unless -ExcludeSubfolders)
         AbsolutePath : Full absolute path to the folder
+        RelativePath : Path relative to the search root ('.' for the root itself)
+        SizeBytes    : Total size in bytes (includes subfolders unless -ExcludeSubfolders)
+        Size         : Human-readable size (B, KB, MB, or GB)
+        FileCount    : Number of files counted (includes subfolders unless -ExcludeSubfolders)
 
 .EXAMPLE
     .\Get-FolderSize.ps1 -Path "C:\" -Top 50
