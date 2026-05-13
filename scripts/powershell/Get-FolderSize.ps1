@@ -7,17 +7,16 @@
 .DESCRIPTION
     Scans the root path and all subdirectories, calculates the total
     size of each folder, and outputs them as objects sorted by size descending.
-    The root folder itself is included in the results with RelativePath set to '.'.
 
     By default, each folder's size includes all files in its subtree (direct files
-    plus all descendant subfolders). Use -ExcludeSubfolders to revert to counting
+    plus all descendant subfolders). Use -NoRecurse to revert to counting
     only the files directly in each folder.
 
     Reparse points (junctions and symbolic links) are not followed, preventing
     infinite loops and duplicate size counting.
 
     Output objects can be composed in the pipeline:
-        .\Get-FolderSize.ps1 -Path C:\ | Where-Object SizeBytes -gt 1GB
+        .\Get-FolderSize.ps1 -Path C:\ | Where-Object Size -gt 1GB
         .\Get-FolderSize.ps1 -Path C:\ | Export-Csv result.csv -NoTypeInformation
 
 .PARAMETER Path
@@ -26,12 +25,12 @@
 .PARAMETER Top
     Number of largest folders to return. If omitted, all results are returned.
 
-.PARAMETER ExcludeSubfolders
+.PARAMETER NoRecurse
     If specified, each folder's size includes only files directly in that folder.
     Subfolders are excluded from the size calculation.
     By default (when this switch is omitted), the size includes all descendant files.
 
-.PARAMETER CsvOutput
+.PARAMETER OutputPath
     If specified, exports results to this path as a CSV file.
 
 .INPUTS
@@ -39,22 +38,21 @@
 
 .OUTPUTS
     PSCustomObject
-        AbsolutePath : Full absolute path to the folder
-        RelativePath : Path relative to the search root ('.' for the root itself)
-        SizeBytes    : Total size in bytes (includes subfolders unless -ExcludeSubfolders)
-        Size         : Human-readable size (B, KB, MB, or GB)
-        FileCount    : Number of files counted (includes subfolders unless -ExcludeSubfolders)
+        Path      : Full absolute path to the folder
+        Size      : Total size in bytes (includes subfolders unless -NoRecurse);
+                    displayed in human-readable units (B/KB/MB/GB/TB) on the console
+        FileCount : Number of files counted (includes subfolders unless -NoRecurse)
 
 .EXAMPLE
     .\Get-FolderSize.ps1 -Path "C:\" -Top 50
     Returns the 50 largest folders (cumulative size including subfolders) under C:\.
 
 .EXAMPLE
-    .\Get-FolderSize.ps1 -Path "C:\" -Top 50 -ExcludeSubfolders
+    .\Get-FolderSize.ps1 -Path "C:\" -Top 50 -NoRecurse
     Returns the 50 largest folders by direct file size only (subfolders excluded).
 
 .EXAMPLE
-    .\Get-FolderSize.ps1 -Path "C:\Users\username" -CsvOutput "C:\Temp\result.csv"
+    .\Get-FolderSize.ps1 -Path "C:\Users\username" -OutputPath "C:\Temp\result.csv"
     Searches under the specified user profile and also exports the results to a CSV file.
 
 .EXAMPLE
@@ -63,7 +61,7 @@
 
 .NOTES
     By default, folder size is the sum of all files in the subtree (direct files
-    plus all descendant subfolders). Use -ExcludeSubfolders to count direct files only.
+    plus all descendant subfolders). Use -NoRecurse to count direct files only.
     Both modes perform the same number of disk I/O operations; the difference is only
     an in-memory aggregation pass.
 #>
@@ -75,23 +73,95 @@ param(
     [string]$Path = (Get-Location).Path,
     [ValidateRange(1, [int]::MaxValue)]
     [int]$Top = [int]::MaxValue,
-    [switch]$ExcludeSubfolders,
-    [string]$CsvOutput = ''
+    [switch]$NoRecurse,
+    [string]$OutputPath = ''
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 # Set console encoding to UTF-8 to prevent garbled output on Shift-JIS consoles
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+
+# Register the display format for FolderSizeInfo objects.
+# The XML is embedded here so this script is self-contained (no companion .ps1xml file needed).
+# Update-FormatData requires a file path; we write to a temp file, load, then delete it immediately
+# (Update-FormatData caches content in memory, so the file is safe to remove after loading).
+#
+# IMPORTANT: The session guard below is required for correctness.
+# Update-FormatData -PrependPath permanently adds the file path to the session's registered-path
+# list. On any subsequent Update-FormatData call in the same session, PowerShell re-reads every
+# path in that list — including the now-deleted temp file — which causes "file not found" errors
+# on every second or later invocation. Registering once per session avoids this entirely.
+# If the embedded format XML is ever changed, start a new PowerShell session to pick it up.
+if (-not (Get-FormatData -TypeName 'FolderSizeInfo')) {
+    $private:_formatXml = @'
+<?xml version="1.0" encoding="utf-8" ?>
+<Configuration>
+  <ViewDefinitions>
+    <View>
+      <Name>FolderSizeInfo</Name>
+      <ViewSelectedBy>
+        <TypeName>FolderSizeInfo</TypeName>
+      </ViewSelectedBy>
+      <TableControl>
+        <TableHeaders>
+          <TableColumnHeader>
+            <Label>Path</Label>
+            <Width>50</Width>
+            <Alignment>Left</Alignment>
+          </TableColumnHeader>
+          <TableColumnHeader>
+            <Label>Size</Label>
+            <Width>15</Width>
+            <Alignment>Right</Alignment>
+          </TableColumnHeader>
+          <TableColumnHeader>
+            <Label>FileCount</Label>
+            <Width>10</Width>
+            <Alignment>Right</Alignment>
+          </TableColumnHeader>
+        </TableHeaders>
+        <TableRowEntries>
+          <TableRowEntry>
+            <TableColumnItems>
+              <TableColumnItem>
+                <PropertyName>Path</PropertyName>
+              </TableColumnItem>
+              <TableColumnItem>
+                <ScriptBlock>
+$s = $_.Size
+if     ($s -ge 1TB) { '{0:N2} TB' -f ($s / 1TB) }
+elseif ($s -ge 1GB) { '{0:N2} GB' -f ($s / 1GB) }
+elseif ($s -ge 1MB) { '{0:N2} MB' -f ($s / 1MB) }
+elseif ($s -ge 1KB) { '{0:N2} KB' -f ($s / 1KB) }
+else                { '{0} B'     -f $s }
+                </ScriptBlock>
+              </TableColumnItem>
+              <TableColumnItem>
+                <PropertyName>FileCount</PropertyName>
+              </TableColumnItem>
+            </TableColumnItems>
+          </TableRowEntry>
+        </TableRowEntries>
+      </TableControl>
+    </View>
+  </ViewDefinitions>
+</Configuration>
+'@
+    $private:_formatTempFile = [System.IO.Path]::Combine(
+        [System.IO.Path]::GetTempPath(),
+        "Get-FolderSize-$([System.Guid]::NewGuid().ToString('N')).format.ps1xml"
+    )
+    try {
+        [System.IO.File]::WriteAllText($private:_formatTempFile, $private:_formatXml, [System.Text.Encoding]::UTF8)
+        Update-FormatData -PrependPath $private:_formatTempFile
+    } finally {
+        Remove-Item -Path $private:_formatTempFile -Force -ErrorAction SilentlyContinue
+    }
+}
+
 $startTime = Get-Date
 $skipCount = 0
-
-function Format-SizeLabel ([long]$bytes) {
-    if     ($bytes -ge 1GB) { '{0:N2} GB' -f ($bytes / 1GB) }
-    elseif ($bytes -ge 1MB) { '{0:N2} MB' -f ($bytes / 1MB) }
-    elseif ($bytes -ge 1KB) { '{0:N2} KB' -f ($bytes / 1KB) }
-    else                    { '{0} B'     -f $bytes }
-}
 
 # Validate path
 if (-not (Test-Path -LiteralPath $Path -PathType Container)) {
@@ -151,19 +221,11 @@ for ($i = 0; $i -lt $total; $i++) {
         $sizeBytes = 0L
         foreach ($f in $files) { $sizeBytes += $f.Length }
 
-        $relPath = if ($folder.FullName -eq $Path) {
-            '.'
-        } else {
-            $folder.FullName.Substring($Path.Length).TrimStart('\')
-        }
-
         [void]$results.Add([PSCustomObject]@{
-            PSTypeName   = 'FolderSizeInfo'
-            AbsolutePath = $folder.FullName
-            RelativePath = $relPath
-            SizeBytes    = $sizeBytes
-            Size         = Format-SizeLabel $sizeBytes
-            FileCount    = $files.Count
+            PSTypeName = 'FolderSizeInfo'
+            Path      = $folder.FullName
+            Size      = $sizeBytes
+            FileCount = $files.Count
         })
     }
     catch {
@@ -175,31 +237,30 @@ for ($i = 0; $i -lt $total; $i++) {
 Write-Progress -Activity 'Calculating folder sizes' -Completed
 
 # Aggregate subtree sizes bottom-up when subfolders are not excluded
-if (-not $ExcludeSubfolders) {
+if (-not $NoRecurse) {
     $cumBytes = @{}
     $cumCount = @{}
     foreach ($r in $results) {
-        $cumBytes[$r.AbsolutePath] = $r.SizeBytes
-        $cumCount[$r.AbsolutePath] = $r.FileCount
+        $cumBytes[$r.Path] = $r.Size
+        $cumCount[$r.Path] = $r.FileCount
     }
     $results |
-        Sort-Object { $_.AbsolutePath.Length } -Descending |
+        Sort-Object { $_.Path.Length } -Descending |
         ForEach-Object {
-            $parent = [System.IO.Path]::GetDirectoryName($_.AbsolutePath)
+            $parent = [System.IO.Path]::GetDirectoryName($_.Path)
             if ($cumBytes.ContainsKey($parent)) {
-                $cumBytes[$parent] += $cumBytes[$_.AbsolutePath]
-                $cumCount[$parent] += $cumCount[$_.AbsolutePath]
+                $cumBytes[$parent] += $cumBytes[$_.Path]
+                $cumCount[$parent] += $cumCount[$_.Path]
             }
         }
     foreach ($r in $results) {
-        $r.SizeBytes  = $cumBytes[$r.AbsolutePath]
-        $r.FileCount  = $cumCount[$r.AbsolutePath]
-        $r.Size       = Format-SizeLabel $r.SizeBytes
+        $r.Size      = $cumBytes[$r.Path]
+        $r.FileCount = $cumCount[$r.Path]
     }
 }
 
 # Output top N results sorted by size descending
-$sorted = $results | Sort-Object -Property SizeBytes -Descending | Select-Object -First $Top
+$sorted = $results | Sort-Object -Property Size -Descending | Select-Object -First $Top
 $sorted
 
 # Report skipped folders and elapsed time
@@ -209,12 +270,12 @@ if ($skipCount -gt 0) {
 Write-Verbose ('Completed in {0:hh\:mm\:ss}' -f ((Get-Date) - $startTime))
 
 # Export to CSV if requested
-if ($CsvOutput) {
+if ($OutputPath) {
     try {
-        $sorted | Export-Csv -Path $CsvOutput -Encoding UTF8 -NoTypeInformation
-        Write-Verbose "CSV exported to: $CsvOutput"
+        $sorted | Export-Csv -Path $OutputPath -Encoding UTF8 -NoTypeInformation
+        Write-Verbose "CSV exported to: $OutputPath"
     }
     catch {
-        Write-Error "Failed to export CSV: $_"
+        Write-Error "Failed to export CSV: $_" -ErrorAction Continue
     }
 }
