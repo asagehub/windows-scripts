@@ -4,14 +4,14 @@ Maintains a target physical memory usage percentage for a specified duration.
 
 ## Syntax
 
-```powershell
+```plaintext
 .\Start-MemoryLoad.ps1
-    -Percent <Int32 (1–99)>
+    -Percent <Int32>
     -Seconds <Int32>
     [<CommonParameters>]
 
 .\Start-MemoryLoad.ps1
-    -Percent <Int32 (1–99)>
+    -Percent <Int32>
     -Minutes <Int32>
     [<CommonParameters>]
 ```

@@ -4,7 +4,7 @@ Returns all folders sorted by size, largest first.
 
 ## Syntax
 
-```powershell
+```plaintext
 .\Get-FolderSize.ps1
     [[-Path] <String>]
     [[-Top] <Int32>]
