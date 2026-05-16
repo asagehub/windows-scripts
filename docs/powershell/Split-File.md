@@ -4,7 +4,7 @@ Splits a large file into numbered parts, or joins them back together.
 
 ## Syntax
 
-```powershell
+```plaintext
 .\Split-File.ps1
     -Mode Split
     -InputFile <String>

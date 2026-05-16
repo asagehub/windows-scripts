@@ -4,7 +4,7 @@ Creates one or more dummy files of a specified size for disk space testing.
 
 ## Syntax
 
-```powershell
+```plaintext
 .\New-DummyFile.ps1
     -Path <String>
     -Size <String>

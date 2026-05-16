@@ -4,7 +4,7 @@ Maintains a target CPU usage percentage for a specified duration.
 
 ## Syntax
 
-```powershell
+```plaintext
 .\Start-CpuLoad.ps1
     -Percent <Int32>
     -Seconds <Int32>
