@@ -31,7 +31,7 @@ Creates `C:\Temp\dummy.bin`.
 Creates `C:\Temp\dummy_001.bin`, `dummy_002.bin`, `dummy_003.bin` (500 MB each).
 
 ```powershell
-.\New-DummyFile.ps1 -Path C:\Temp -Size 1GB -Name testdata -Force
+.\New-DummyFile.ps1 -Path C:\Temp -Size 2GB -Name testdata -Force
 ```
 
 Creates `C:\Temp\testdata.bin`, overwriting if it already exists.

@@ -6,12 +6,12 @@ Maintains a target physical memory usage percentage for a specified duration.
 
 ```powershell
 .\Start-MemoryLoad.ps1
-    -Percent <Int32>
+    -Percent <Int32 (1–99)>
     -Seconds <Int32>
     [<CommonParameters>]
 
 .\Start-MemoryLoad.ps1
-    -Percent <Int32>
+    -Percent <Int32 (1–99)>
     -Minutes <Int32>
     [<CommonParameters>]
 ```
