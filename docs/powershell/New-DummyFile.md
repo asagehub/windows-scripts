@@ -40,4 +40,4 @@ Creates `C:\Temp\testdata.bin`, overwriting if it already exists.
 .\New-DummyFile.ps1 -Path C:\Temp -Size 2TB -Fast
 ```
 
-Creates `C:\Temp\dummy.bin` (2 TB) near-instantly. Requires an NTFS volume.
+Creates `C:\Temp\dummy.bin` near-instantly. Requires an NTFS volume.
